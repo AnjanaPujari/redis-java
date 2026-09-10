@@ -74,7 +74,6 @@ This project implements a custom TCP server, RESP protocol parsing, Redis-style 
 
 ## Architecture
 
-```text
 Client
    |
    v
