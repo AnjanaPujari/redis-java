@@ -1,0 +1,14 @@
+# Java compiled files
+*.class
+
+# Redis runtime snapshots
+redis.snapshot
+redis.snapshot.bak
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
