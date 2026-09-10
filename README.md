@@ -2,11 +2,11 @@
 
 A lightweight Redis-like in-memory key-value database built from scratch using Java.
 
-This project implements a custom TCP server, RESP protocol parsing, Redis-style commands, data structures, TTL/expiration, persistence, concurrency handling, and performance benchmarking.
+This project implements a custom TCP server, RESP protocol parsing, Redis-style commands, multiple data structures, TTL and expiration, persistence, concurrency handling, error handling, and performance benchmarking.
 
 ## Features
 
-- TCP server on port 6379
+- TCP server running on port 6379
 - RESP protocol parsing
 - Redis-style command execution
 - String operations
@@ -17,12 +17,14 @@ This project implements a custom TCP server, RESP protocol parsing, Redis-style 
 - Atomic INCR
 - SETNX
 - Concurrent client handling
-- Persistence using snapshots
+- Thread-safe data storage
+- Snapshot-based persistence
 - Backup snapshot and crash recovery
 - Background expired-key cleanup
-- Error and malformed-request handling
+- Malformed request handling
+- Command argument validation
+- Wrong data-type handling
 - Performance benchmarking
-- Thread-safe data storage
 
 ## Supported Commands
 
@@ -74,6 +76,7 @@ This project implements a custom TCP server, RESP protocol parsing, Redis-style 
 
 ## Architecture
 
+```text
 Client
    |
    v
@@ -98,6 +101,13 @@ SnapshotManager
    v
 Redis Snapshot
 
+Component Responsibilities
+RedisServer — Accepts TCP client connections and manages client threads.
+RespParser — Parses incoming Redis Serialization Protocol (RESP) requests.
+CommandRegistry — Validates commands, arguments, and executes Redis operations.
+RedisStore — Stores data, expiration information, and manages per-key locking.
+SnapshotManager — Handles persistence and snapshot recovery.
+RespWriter — Sends properly formatted RESP responses to clients.
 Technologies Used
 Java
 TCP/IP Socket Programming
@@ -106,11 +116,12 @@ ConcurrentHashMap
 Java Concurrency
 File I/O
 PowerShell
-Git & GitHub
+Git
+GitHub
 Running the Project
-1. Compile
+1. Compile the Project
 
-Open a terminal in the src directory:
+Open PowerShell in the src directory:
 
 cd C:\Users\Anjana\OneDrive\Desktop\redis-java\src
 javac *.java
@@ -119,32 +130,42 @@ java Main
 
 The server starts on port 6379.
 
+You should see:
+
+Redis server started on port 6379...
+Waiting for a client...
 3. Send Commands
 
 The server accepts Redis-style commands through a TCP connection using the RESP protocol.
 
-Example:
+Example commands:
 
 SET name Anju
 GET name
+
+The project can also be tested using the PowerShell Redis-Command helper used during development.
+
 Concurrency
 
 The server supports multiple clients simultaneously using separate client threads.
 
 Atomic operations such as INCR and SETNX are protected using synchronization and per-key locking.
 
-Concurrent testing confirmed that multiple clients can update the same key while maintaining correct final values.
+Concurrent testing was performed with multiple clients updating the same keys. The final values matched the expected results, demonstrating correct handling of concurrent operations.
 
-Persistence
+Persistence and Crash Recovery
 
 The project supports snapshot-based persistence.
 
 The server:
 
 Loads the existing snapshot during startup.
-Saves data using the SAVE command.
+Saves the current data using the SAVE command.
 Creates a backup snapshot.
-Uses the backup during recovery if the primary snapshot is corrupted.
+Uses the backup snapshot when the primary snapshot is corrupted or unavailable.
+
+Crash-recovery testing was performed by saving data, terminating the server, corrupting the primary snapshot, and restarting the server. The backup snapshot was successfully used to recover previously saved data.
+
 TTL and Expiration
 
 Keys can be given an expiration time using:
@@ -155,21 +176,31 @@ Remaining lifetime can be checked using:
 
 TTL key
 
-Expired keys are removed automatically through background cleanup as well as normal key access.
+Expired keys are removed through normal key access and background cleanup.
+
+Example:
+
+SET name Anju
+EXPIRE name 10
+TTL name
+
+After the expiration time, the key is no longer available.
 
 Error Handling
 
-The server handles:
+The server handles various invalid and failure conditions, including:
 
 Invalid RESP requests
 Invalid array lengths
 Invalid bulk-string lengths
-Missing arguments
-Too many arguments
+Incomplete requests
+Missing command arguments
+Too many command arguments
 Invalid integer values
 Wrong data types
 Missing keys
 Connection failures
+Server restart scenarios
 
 Example:
 
@@ -178,26 +209,46 @@ GET
 returns:
 
 -ERR wrong number of arguments
+
+Trying to use GET on a list produces a WRONGTYPE error.
+
 Performance
 
-Benchmarking was performed using both new TCP connections and persistent connections.
+Performance benchmarking was performed using 1,000 operations under different connection models.
 
-Persistent connections significantly improved throughput by removing repeated TCP connection setup and teardown overhead.
+New TCP Connection Per Operation
+Operation	Time	Throughput
+SET	1419.65 ms	704.40 ops/sec
+GET	1377.43 ms	725.99 ops/sec
+INCR	1747.05 ms	572.39 ops/sec
+Concurrent INCR	770.10 ms	1298.54 ops/sec
+Persistent TCP Connection
+Operation	Time	Throughput
+SET	253.72 ms	3941.35 ops/sec
+GET	154.40 ms	6476.65 ops/sec
+INCR	136.11 ms	7346.79 ops/sec
+Concurrent Persistent Connection
+Operation	Time	Throughput
+SET	175.85 ms	5686.53 ops/sec
+GET	166.25 ms	6015.04 ops/sec
+INCR	136.98 ms	7300.17 ops/sec
+Concurrent INCR	80.31 ms	12452.23 ops/sec
 
-A concurrent persistent-connection benchmark achieved approximately:
+The results show that persistent TCP connections significantly improve throughput because repeated TCP connection setup and teardown overhead is avoided.
 
-12,452 operations/second
+The concurrent persistent-connection benchmark achieved approximately 12.45K operations/second for the tested concurrent INCR workload while maintaining the expected final value.
 
-for the tested concurrent INCR workload on the local development machine.
-
-Benchmark results depend on hardware, JVM version, operating-system load, and test conditions.
+These are local development benchmark results. Performance can vary depending on hardware, JVM version, operating-system load, and test conditions.
 
 Testing
 
 The project was tested for:
 
-Basic commands
-Data structures
+Basic Redis commands
+Strings
+Lists
+Sets
+Hashes
 TTL and expiration
 Persistence
 Crash recovery
@@ -206,7 +257,8 @@ Atomic operations
 Malformed RESP requests
 Invalid command arguments
 Wrong data types
-Server restart and connection failures
+Server restart
+Connection failures
 Performance
 Project Structure
 redis-java/
@@ -221,21 +273,25 @@ redis-java/
 |   +-- CommandRegistry.java
 |   +-- CommandHandler.java
 |   +-- SnapshotManager.java
-|   +-- Benchmark.java
+|   +-- RedisBenchmark.java
 |   +-- RedisStoreTest.java
+|   +-- threadtest.java
 |
 +-- README.md
-+-- redis.snapshot
++-- .gitignore
 Learning Outcomes
 
-Through this project, I worked with:
+Through this project, I gained practical experience with:
 
 Network programming
-TCP sockets
+TCP socket programming
 Protocol parsing
+Client-server architecture
 Concurrent programming
 Thread safety
+Per-key synchronization
 Data structures
+TTL and expiration
 Persistence
 Crash recovery
 Error handling
