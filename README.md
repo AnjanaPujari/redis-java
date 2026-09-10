@@ -300,3 +300,19 @@ Git and GitHub
 
 Author
 Anjana Pujari
+## Live Deployment
+
+The Redis server is deployed on Railway and exposed through a TCP Proxy.
+
+- **Platform:** Railway
+- **Protocol:** TCP
+- **Internal Port:** 6379
+- **Public Endpoint:** Sakura.proxy.rlwy.net:44516
+
+The deployed server was tested remotely using:
+- PING → +PONG
+- SET name Anju → +OK
+- GET name → Anju
+
+> This is a raw TCP Redis-compatible server, so the endpoint is not an HTTP/HTTPS webpage.
+
